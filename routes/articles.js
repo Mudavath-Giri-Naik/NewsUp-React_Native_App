@@ -72,5 +72,29 @@ router.get("/by-id/:paper/:articleId", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+// ✅ 4. Get all articles for a newspaper (category = 'all')
+// GET /api/articles/all/:paper
+router.get("/all/:paper", async (req, res) => {
+  try {
+    const { paper } = req.params;
+    const db = mongoose.connection.useDb("DailyNews");
+    const collection = db.collection(paper);
+
+    // When category is 'all', fetch all articles from the newspaper (regardless of category)
+    const articles = await collection
+      .find() // No category filter here
+      .project({ articleId: 1, title: 1, _id: 0 }) // Only select articleId and title fields
+      .toArray();
+
+    if (!articles || articles.length === 0) {
+      return res.status(404).json({ error: "No articles found" });
+    }
+
+    res.json(articles);
+  } catch (error) {
+    console.error("Error fetching articles:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 module.exports = router;
