@@ -80,10 +80,9 @@ router.get("/all/:paper", async (req, res) => {
     const db = mongoose.connection.useDb("DailyNews");
     const collection = db.collection(paper);
 
-    // When category is 'all', fetch all articles from the newspaper (regardless of category)
+    // Fetch all articles with articleId and title
     const articles = await collection
-      .find() // No category filter here
-      .project({ articleId: 1, title: 1, _id: 0 }) // Only select articleId and title fields
+      .find({}, { projection: { articleId: 1, title: 1, _id: 0 } })
       .toArray();
 
     if (!articles || articles.length === 0) {
@@ -96,5 +95,6 @@ router.get("/all/:paper", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 module.exports = router;
