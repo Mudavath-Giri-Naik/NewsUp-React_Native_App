@@ -95,6 +95,45 @@ router.get("/all/:paper", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+// ✅ 5. Get Related_to counts for a newspaper
+// GET /api/articles/Related_to/:paper
+router.get("/Related_to/:paper", async (req, res) => {
+  try {
+    const { paper } = req.params;
+    const db = mongoose.connection.useDb("DailyNews");
+    const collection = db.collection(paper);
+
+    const relatedTo = await collection.aggregate([
+      { $group: { _id: "$Related_to", count: { $sum: 1 } } },
+    ]).toArray();
+
+    res.json(relatedTo);
+  } catch (error) {
+    console.error("Error fetching Related_to:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ✅ 6. Get article titles by newspaper and Related_to value
+// GET /api/articles/titles/:paper/Related_to/:relatedToValue
+router.get("/titles/:paper/Related_to/:relatedToValue", async (req, res) => {
+  try {
+    const { paper, relatedToValue } = req.params;
+    const db = mongoose.connection.useDb("DailyNews");
+    const collection = db.collection(paper);
+
+    const articles = await collection
+      .find({ Related_to: relatedToValue })
+      .project({ articleId: 1, title: 1, _id: 0 })
+      .toArray();
+
+    res.json(articles);
+  } catch (error) {
+    console.error("Error fetching article titles by Related_to:", error);
+    res.status(500).json({ error: "Failed to fetch article titles" });
+  }
+});
+
 
 
 module.exports = router;
