@@ -135,6 +135,119 @@ router.get("/titles/:paper/secondCategory/:secondCategoryValue", async (req, res
   }
 });
 
+// ✅ 7. Get secondCategory counts across all newspapers
+// GET /api/articles/secondCategory/all
+router.get('/secondCategory/all', async (req, res) => {
+  try {
+    const db = mongoose.connection.useDb('DailyNews');
+    const papers = [
+      'The Hindu',
+      'Times of India',
+      'Exam',
+      'Hindustan Times',
+      'Indian Express',
+    ];
+
+    const categoryCounts = {};
+
+    for (const paper of papers) {
+      try {
+        const collection = db.collection(paper);
+
+        const hasField = await collection.findOne({ secondCategory: { $exists: true } });
+        if (!hasField) {
+          console.log(`❌ Skipping ${paper} (no secondCategory)`);
+          continue;
+        }
+
+        const results = await collection.aggregate([
+          { $group: { _id: '$secondCategory', count: { $sum: 1 } } },
+        ]).toArray();
+
+        results.forEach(({ _id, count }) => {
+          if (_id) {
+            categoryCounts[_id] = (categoryCounts[_id] || 0) + count;
+          }
+        });
+
+      } catch (error) {
+        console.error(`Error processing ${paper}:`, error.message);
+      }
+    }
+
+    // Convert to array format if needed
+    const resultArray = Object.entries(categoryCounts).map(([category, count]) => ({
+      secondCategory: category,
+      count,
+    }));
+
+    res.json(resultArray);
+  } catch (err) {
+    console.error('Error fetching secondCategory:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// ✅ 8. Get article titles by secondCategory across all newspapers
+// GET /api/articles/titles/secondCategory/:secondCategoryValue
+// Debug version of: GET /api/articles/titles/secondCategory/all/:secondCategoryValue
+router.get('/titles/secondCategory/all/:secondCategoryValue', async (req, res) => {
+  try {
+    const { secondCategoryValue } = req.params;
+    const db = mongoose.connection.useDb('DailyNews');
+
+    const papers = [
+      'The Hindu',
+      'Times of India',
+      'Exam',
+      'Hindustan Times',
+      'Indian Express',
+    ];
+
+    const articles = [];
+
+    for (const paper of papers) {
+      try {
+        const collection = db.collection(paper);
+
+        const sample = await collection.findOne({}, { projection: { secondCategory: 1 } });
+        console.log(`📄 ${paper} -> Sample secondCategory field:`, sample?.secondCategory);
+
+        const hasField = await collection.findOne({ secondCategory: { $exists: true } });
+        if (!hasField) {
+          console.log(`❌ Skipping ${paper} (no secondCategory)`);
+          continue;
+        }
+
+        const paperArticles = await collection
+          .find({ secondCategory: secondCategoryValue })
+          .project({ articleId: 1, title: 1, _id: 0 })
+          .toArray();
+
+        console.log(`✅ ${paper}: Found ${paperArticles.length} articles for ${secondCategoryValue}`);
+
+        paperArticles.forEach((a) =>
+          articles.push({
+            articleId: a.articleId,
+            title: a.title,
+            newspaper: paper,
+          })
+        );
+      } catch (error) {
+        console.error(`Error processing ${paper}:`, error.message);
+      }
+    }
+
+    res.json(articles);
+  } catch (err) {
+    console.error('Error fetching titles:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
 
 
 
