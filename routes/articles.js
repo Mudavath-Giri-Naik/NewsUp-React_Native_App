@@ -290,7 +290,28 @@ router.get('/by-date/:date', async (req, res) => {
   }
 });
 
+// ✅ 10. Get all articles for a given newspaper on a specific date
+// GET /api/articles/:paper/by-date/:date
+router.get('/:paper/by-date/:date', async (req, res) => {
+  try {
+    const { paper, date } = req.params;
+    const db = mongoose.connection.useDb('DailyNews');
+    const collection = db.collection(paper);
 
+    const articles = await collection
+      .find({ date: date }) // Assuming date is in 'DD-MM-YYYY' format
+      .toArray();
+
+    if (!articles || articles.length === 0) {
+      return res.status(404).json({ message: `No articles found for ${paper} on ${date}` });
+    }
+
+    res.json(articles);
+  } catch (error) {
+    console.error(`Error fetching articles for ${paper} on ${date}:`, error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 
 
