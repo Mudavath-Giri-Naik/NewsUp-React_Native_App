@@ -245,6 +245,50 @@ router.get('/titles/secondCategory/all/:secondCategoryValue', async (req, res) =
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+// ✅9 New Route: Get all articles by date across selected newspapers
+// GET /api/articles/by-date/:date
+router.get('/by-date/:date', async (req, res) => {
+  try {
+    const { date } = req.params;
+    const db = mongoose.connection.useDb('DailyNews');
+
+    const papers = [
+      'The Hindu',
+      'Times of India',
+      'Exam',
+      'Hindustan Times',
+      'Indian Express',
+    ];
+
+    const articles = [];
+
+    for (const paper of papers) {
+      try {
+        const collection = db.collection(paper);
+
+        const paperArticles = await collection
+          .find({ date: date })  // Assuming articles have a `date` field like '25-04-2025'
+          .toArray();
+
+        // Attach newspaper name to each article
+        paperArticles.forEach(article => {
+          articles.push({ ...article, newspaper: paper });
+        });
+      } catch (error) {
+        console.error(`Error fetching articles from ${paper}:`, error.message);
+      }
+    }
+
+    if (articles.length === 0) {
+      return res.status(404).json({ message: `No articles found for ${date}` });
+    }
+
+    res.json(articles);
+  } catch (error) {
+    console.error('Error fetching articles by date:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 
 
