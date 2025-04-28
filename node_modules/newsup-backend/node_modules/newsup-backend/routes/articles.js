@@ -53,6 +53,7 @@ router.get('/:paper/by-date/:date', async (req, res) => {
           articleId: article.articleId,
           date: article.date,
           category: article.category,
+          title: article.title,
           examSpecific: article.examSpecific,
           deepAnalysisJson: article.deepAnalysisJson,
           summaryPointsJson: article.summaryPointsJson,
