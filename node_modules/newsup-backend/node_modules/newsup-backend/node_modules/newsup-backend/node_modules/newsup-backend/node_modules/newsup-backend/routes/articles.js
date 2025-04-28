@@ -10,15 +10,9 @@ router.get("/by-id/:paper/:articleId", async (req, res) => {
     const db = mongoose.connection.useDb("DailyNews");
     const collection = db.collection(paper);
 
-    // Determine which fields to include based on paper type
-    const fieldsToInclude = paper === 'Exam'
-      ? { title: 1, category: 1, date: 1, examSpecific: 1, deepAnalysisJson: 1, summaryPointsJson: 1 }
-      : { title: 1, involvement: 1, past: 1, present: 1, points: 1, glossary: 1, category: 1, date: 1 };
-
-    // Fetch full article with selected fields
+    // Fetch full article
     const article = await collection.findOne(
-      { articleId: parseInt(articleId) },
-      { projection: fieldsToInclude }
+      { articleId: parseInt(articleId) }
     );
 
     if (!article) {
