@@ -46,14 +46,26 @@ router.get('/:paper/by-date/:date', async (req, res) => {
       return res.status(404).json({ message: `No articles found for ${paper} on ${date}` });
     }
 
-    // 🔥 Now dynamically map each article based on examSpecific
     const articles = rawArticles.map(article => {
+      let finalTitle = article.title?.trim();
+
+      // If title is missing or very short, try to fallback from deepAnalysisJson or summaryPointsJson
+      if (!finalTitle || finalTitle.length < 5) {
+        if (article.deepAnalysisJson?.title) {
+          finalTitle = article.deepAnalysisJson.title.trim();
+        } else if (article.summaryPointsJson?.title) {
+          finalTitle = article.summaryPointsJson.title.trim();
+        } else {
+          finalTitle = 'Untitled Article'; // Fallback if nothing is available
+        }
+      }
+
       if (article.examSpecific === true) {
         return {
           articleId: article.articleId,
           date: article.date,
           category: article.category,
-          title: article.title,
+          title: finalTitle,
           examSpecific: article.examSpecific,
           deepAnalysisJson: article.deepAnalysisJson,
           summaryPointsJson: article.summaryPointsJson,
@@ -64,7 +76,7 @@ router.get('/:paper/by-date/:date', async (req, res) => {
           date: article.date,
           category: article.category,
           examSpecific: article.examSpecific,
-          title: article.title,
+          title: finalTitle,
           involvement: article.involvement,
           past: article.past,
           present: article.present,
@@ -80,6 +92,7 @@ router.get('/:paper/by-date/:date', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 
 
