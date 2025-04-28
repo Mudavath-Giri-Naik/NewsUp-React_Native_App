@@ -25,39 +25,104 @@
       res.status(500).json({ error: "Internal server error" });
     }
   });
-
- // ✅ 2. Get paginated and light articles for a given newspaper on a specific date (with examSpecific field)
+// Route 2: Get paginated articles - FIXED JSON PARSING
 router.get('/:paper/by-date/:date', async (req, res) => {
   try {
     const { paper, date } = req.params;
-    const { page = 1, limit = 10 } = req.query; // pagination query params
+    const { page = 1, limit = 10 } = req.query;
     const db = mongoose.connection.useDb('DailyNews');
     const collection = db.collection(paper);
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageInt = parseInt(page);
+    const limitInt = parseInt(limit);
+    const skip = (pageInt - 1) * limitInt;
 
-    const articles = await collection.find({ date: date })
-      .project({ title: 1, date: 1, category: 1, articleId: 1, examSpecific: 1 }) // ✅ included examSpecific field
+    // Fetch articles including fields needed for processing
+    const articlesFromDb = await collection.find({ date: date })
+      .project({
+        title: 1,
+        date: 1,
+        category: 1,
+        articleId: 1,
+        examSpecific: 1,
+        summaryPointsJson: 1 // Fetch the field
+      })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(limitInt)
       .toArray();
 
-    if (!articles || articles.length === 0) {
+    if (!articlesFromDb || articlesFromDb.length === 0) {
       return res.status(404).json({ message: `No articles found for ${paper} on ${date}` });
     }
 
-    // Optionally: ensure all articles have examSpecific, set to undefined if missing
-    const finalArticles = articles.map(article => ({
-      title: article.title,
-      date: article.date,
-      category: article.category,
-      articleId: article.articleId,
-      examSpecific: article.examSpecific !== undefined ? article.examSpecific : undefined
-    }));
+    // --- Process articles: Clean string, parse JSON, extract headings ---
+    const processedArticles = articlesFromDb.map(article => {
+      let syllabusHeadings = [];
+      let summaryData = null; // Start with null
+      const rawSummaryString = article.summaryPointsJson;
 
-    res.json(finalArticles);
+      // Check if we have a string to process
+      if (rawSummaryString && typeof rawSummaryString === 'string') {
+        let stringToParse = rawSummaryString.trim(); // Remove leading/trailing whitespace
+
+        // --- *** NEW: Remove Markdown Code Fence *** ---
+        const prefix = '```json';
+        const suffix = '```';
+        if (stringToParse.startsWith(prefix)) {
+          stringToParse = stringToParse.substring(prefix.length); // Remove ```json
+        }
+        if (stringToParse.endsWith(suffix)) {
+          stringToParse = stringToParse.substring(0, stringToParse.length - suffix.length); // Remove ```
+        }
+        stringToParse = stringToParse.trim(); // Trim again after removing fences
+        // --- *** End Remove Fence *** ---
+
+        // Now attempt to parse the cleaned string
+        if (stringToParse) {
+          try {
+            summaryData = JSON.parse(stringToParse); // Parse the *cleaned* string
+          } catch (parseError) {
+            console.error(`Failed to parse JSON for articleId ${article.articleId} after cleaning: ${parseError.message}`);
+            // Keep summaryData as null if parsing fails
+          }
+        }
+      } else if (rawSummaryString && typeof rawSummaryString === 'object') {
+         // It might already be a correct BSON object
+         summaryData = rawSummaryString;
+      }
+
+      // Now, proceed only if summaryData is a valid object
+      if (summaryData && typeof summaryData === 'object') {
+        const syllabusItems = summaryData.InterconnectionsWithSyllabus;
+
+        if (Array.isArray(syllabusItems)) {
+          syllabusItems.forEach(item => {
+            if (typeof item === 'string') {
+              const match = item.match(/{{highlighted}}(.*?){{\/highlighted}}/);
+              if (match && match[1]) {
+                syllabusHeadings.push(match[1].trim());
+              }
+            }
+          });
+        }
+      }
+
+      // Construct the final article object
+      return {
+        title: article.title,
+        date: article.date,
+        category: article.category,
+        articleId: article.articleId,
+        examSpecific: article.examSpecific === undefined ? undefined : Boolean(article.examSpecific),
+        syllabusHeadings: syllabusHeadings // Use the extracted headings (or empty array)
+      };
+    });
+    // --- End processing ---
+
+    res.json(processedArticles); // Send the processed articles
+
   } catch (error) {
-    console.error(`Error fetching articles for ${paper} on ${date}:`, error.message);
+    console.error(`Error fetching articles for ${paper} on ${date}:`, error.message, error.stack);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
