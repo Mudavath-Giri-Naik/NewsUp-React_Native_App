@@ -31,21 +31,47 @@ router.get("/by-id/:paper/:articleId", async (req, res) => {
 router.get('/:paper/by-date/:date', async (req, res) => {
   try {
     const { paper, date } = req.params;
-    const { page = 1, limit = 10 } = req.query; // new: pagination query params
+    const { page = 1, limit = 10 } = req.query;
     const db = mongoose.connection.useDb('DailyNews');
     const collection = db.collection(paper);
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const articles = await collection.find({ date: date })
-      .project({ title: 1, date: 1, category: 1, articleId: 1 }) // new: send light fields only
+    const rawArticles = await collection.find({ date: date })
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
 
-    if (!articles || articles.length === 0) {
+    if (!rawArticles || rawArticles.length === 0) {
       return res.status(404).json({ message: `No articles found for ${paper} on ${date}` });
     }
+
+    // 🔥 Now dynamically map each article based on examSpecific
+    const articles = rawArticles.map(article => {
+      if (article.examSpecific === true) {
+        return {
+          articleId: article.articleId,
+          date: article.date,
+          category: article.category,
+          examSpecific: article.examSpecific,
+          deepAnalysisJson: article.deepAnalysisJson,
+          summaryPointsJson: article.summaryPointsJson,
+        };
+      } else {
+        return {
+          articleId: article.articleId,
+          date: article.date,
+          category: article.category,
+          examSpecific: article.examSpecific,
+          title: article.title,
+          involvement: article.involvement,
+          past: article.past,
+          present: article.present,
+          points: article.points,
+          glossary: article.glossary,
+        };
+      }
+    });
 
     res.json(articles);
   } catch (error) {
@@ -53,35 +79,7 @@ router.get('/:paper/by-date/:date', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-// ✅ 3. Get exam-specific articles for a given newspaper
-// GET /api/articles/:paper/exam-specific
-router.get('/:paper/exam-specific', async (req, res) => {
-  try {
-    const { paper } = req.params;
-    const db = mongoose.connection.useDb('DailyNews');
-    const collection = db.collection(paper);
 
-    const articles = await collection.find({ examSpecific: true })
-      .project({
-        articleId: 1,
-        title: 1,
-        category: 1,
-        date: 1,
-        examSpecific: 1,
-        deepAnalysisJson: 1,
-        summaryPointsJson: 1
-      })
-      .toArray();
 
-    if (!articles || articles.length === 0) {
-      return res.status(404).json({ message: `No exam-specific articles found for ${paper}` });
-    }
-
-    res.json(articles);
-  } catch (error) {
-    console.error(`Error fetching exam-specific articles for ${paper}:`, error.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 module.exports = router;
