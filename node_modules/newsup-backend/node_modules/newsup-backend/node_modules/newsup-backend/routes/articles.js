@@ -1,36 +1,38 @@
-  const express = require('express');
-  const router = express.Router();
-  const mongoose = require('mongoose');
+const express = require('express');
+const router = express.Router();
+const mongoose = require('mongoose');
 
-  // ✅ 1. Get full article by articleId
-  // GET /api/articles/by-id/:paper/:articleId
-  router.get("/by-id/:paper/:articleId", async (req, res) => {
-    try {
-      const { paper, articleId } = req.params;
-      const db = mongoose.connection.useDb("DailyNews");
-      const collection = db.collection(paper);
+// ✅ 1. Get full article by articleId
+// GET /api/articles/by-id/:paper/:articleId
+router.get("/by-id/:paper/:articleId", async (req, res) => {
+  try {
+    const { paper, articleId } = req.params;
+    const db = mongoose.connection.useDb("DailyNews"); // Uses DailyNews DB
+    const collection = db.collection(paper);
 
-      // Fetch full article
-      const article = await collection.findOne(
-        { articleId: parseInt(articleId) }
-      );
+    // Fetch full article
+    const article = await collection.findOne(
+      { articleId: parseInt(articleId) }
+    );
 
-      if (!article) {
-        return res.status(404).json({ error: "Article not found" });
-      }
-
-      res.json(article);
-    } catch (error) {
-      console.error("Error fetching article:", error);
-      res.status(500).json({ error: "Internal server error" });
+    if (!article) {
+      return res.status(404).json({ error: "Article not found" });
     }
-  });
-// Route 2: Get paginated articles - FIXED JSON PARSING
+
+    res.json(article);
+  } catch (error) {
+    console.error("Error fetching article by ID:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ✅ Route 2: Get paginated articles - FIXED JSON PARSING
+// GET /api/articles/:paper/by-date/:date
 router.get('/:paper/by-date/:date', async (req, res) => {
   try {
     const { paper, date } = req.params;
     const { page = 1, limit = 10 } = req.query;
-    const db = mongoose.connection.useDb('DailyNews');
+    const db = mongoose.connection.useDb('DailyNews'); // Uses DailyNews DB
     const collection = db.collection(paper);
 
     const pageInt = parseInt(page);
@@ -128,4 +130,40 @@ router.get('/:paper/by-date/:date', async (req, res) => {
 });
 
 
-  module.exports = router;
+// ✅ NEW Route 3: Get Daily Resource Data by Date
+// GET /api/articles/resources/daily/by-date/:date
+// Assumes documents in 'Resources' DB, 'Daily' collection have a field named 'Date' (capitalized) matching the format of the :date parameter
+router.get('/resources/daily/by-date/:date', async (req, res) => {
+  try {
+    const { date } = req.params; // Get the date from the URL parameter
+
+    // --- Database Connection ---
+    // Ensure mongoose connection is established elsewhere in your app
+    const db = mongoose.connection.useDb('Resources'); // Connect to the 'Resources' database
+    const collection = db.collection('Daily');       // Use the 'Daily' collection
+
+    // --- Database Query ---
+    // Find all documents in the 'Daily' collection where the 'Date' field matches the requested date
+    // Note: Ensure the 'Date' field in your MongoDB matches the case ('Date' vs 'date')
+    // And that the format of the stored date matches the format passed in the URL parameter (e.g., 'YYYY-MM-DD')
+    const dailyData = await collection.find({ Date: date }).toArray();
+
+    // --- Response Handling ---
+    if (!dailyData || dailyData.length === 0) {
+      // If no documents are found for that date, return a 404
+      return res.status(404).json({ message: `No daily resources found for date ${date}` });
+    }
+
+    // If documents are found, return the full array of matching documents
+    // This includes all fields as stored in the database (Date, Category, Topic, etc.)
+    res.json(dailyData);
+
+  } catch (error) {
+    // --- Error Handling ---
+    console.error(`Error fetching daily resources for date ${date}:`, error);
+    res.status(500).json({ error: 'Internal server error while fetching daily resources' });
+  }
+});
+
+
+module.exports = router; // Export the router with all routes
