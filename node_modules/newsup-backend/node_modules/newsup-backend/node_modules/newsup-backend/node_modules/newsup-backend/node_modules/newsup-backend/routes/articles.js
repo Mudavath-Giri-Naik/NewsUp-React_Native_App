@@ -135,35 +135,25 @@ router.get('/:paper/by-date/:date', async (req, res) => {
 // Assumes documents in 'Resources' DB, 'Daily' collection have a field named 'Date' (capitalized) matching the format of the :date parameter
 router.get('/resources/daily/by-date/:date', async (req, res) => {
   try {
-    const { date } = req.params; // Get the date from the URL parameter
+    const { date } = req.params;
 
-    // --- Database Connection ---
-    // Ensure mongoose connection is established elsewhere in your app
-    const db = mongoose.connection.useDb('Resources'); // Connect to the 'Resources' database
-    const collection = db.collection('Daily');       // Use the 'Daily' collection
+    const db = mongoose.connection.useDb('Resources');
+    const collection = db.collection('Daily');
 
-    // --- Database Query ---
-    // Find all documents in the 'Daily' collection where the 'Date' field matches the requested date
-    // Note: Ensure the 'Date' field in your MongoDB matches the case ('Date' vs 'date')
-    // And that the format of the stored date matches the format passed in the URL parameter (e.g., 'YYYY-MM-DD')
-    const dailyData = await collection.find({ Date: date }).toArray();
+    const dailyData = await collection.find({ Date: date })
+      .project({ _id: 0 }) // Optional: specify only necessary fields
+      .toArray();
 
-    // --- Response Handling ---
     if (!dailyData || dailyData.length === 0) {
-      // If no documents are found for that date, return a 404
       return res.status(404).json({ message: `No daily resources found for date ${date}` });
     }
 
-    // If documents are found, return the full array of matching documents
-    // This includes all fields as stored in the database (Date, Category, Topic, etc.)
     res.json(dailyData);
 
   } catch (error) {
-    // --- Error Handling ---
     console.error(`Error fetching daily resources for date ${date}:`, error);
     res.status(500).json({ error: 'Internal server error while fetching daily resources' });
   }
 });
-
 
 module.exports = router; // Export the router with all routes
